@@ -667,3 +667,136 @@ def test_scan_reports_output_write_error(
 
     assert captured.out == ""
     assert ("runbookproof: error: cannot write missing/report.json") in captured.err
+
+
+def test_scan_can_ignore_rule_in_text_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An ignored rule should be removed from text output."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--ignore-rule",
+                "RBP-FAKE-999",
+                "--ignore-rule",
+                "rbp-azure-001",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == (
+        "Scanned risky.md: 1 command, 0 errors, 0 warnings, 0 info\n"
+    )
+    assert captured.err == ""
+
+
+def test_scan_can_ignore_rule_in_json_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Ignored rules should be absent from JSON reports."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--format",
+                "json",
+                "--ignore-rule",
+                "RBP-AZURE-001",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["finding_count"] == 0
+    assert payload["error_count"] == 0
+    assert payload["exit_code"] == 0
+    assert payload["findings"] == []
+
+
+def test_scan_can_ignore_rule_in_sarif_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Ignored rules should be absent from SARIF output."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--format",
+                "sarif",
+                "--ignore-rule",
+                "RBP-AZURE-001",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    run = payload["runs"][0]
+
+    assert captured.err == ""
+    assert run["tool"]["driver"]["rules"] == []
+    assert run["results"] == []
+
+
+def test_scan_rejects_invalid_ignored_rule_id(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Malformed ignored rule IDs should be rejected."""
+    with pytest.raises(SystemExit) as error:
+        main(
+            [
+                "scan",
+                "README.md",
+                "--ignore-rule",
+                "not-a-rule",
+            ]
+        )
+
+    assert error.value.code == 2
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert "rule ID must follow the format RBP-PACK-001" in captured.err
