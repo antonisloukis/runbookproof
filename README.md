@@ -63,7 +63,7 @@ uv run runbookproof scan docs/
 ## Usage
 
 ```text
-runbookproof scan PATH [--format {text,json,sarif}] [-o OUTPUT] [--ignore-rule RULE_ID]
+runbookproof scan PATH [--format {text,json,sarif}] [-o OUTPUT] [--ignore-rule RULE_ID] [--config PATH]
 ```
 
 ### Human-readable output
@@ -140,6 +140,35 @@ uv run runbookproof scan docs/ \
 ```
 
 Ignored findings are removed from text, JSON, and SARIF output. They are also excluded from finding counts and exit-code calculation.
+
+### Configuration file
+
+RunbookProof automatically loads `.runbookproof.toml` from the current working directory when the file exists:
+
+```toml
+[scan]
+ignore_rules = [
+  "RBP-AZURE-001",
+  "RBP-AWS-002",
+]
+```
+
+Run the scan normally:
+
+```bash
+uv run runbookproof scan docs/
+```
+
+Rules from the configuration file are combined with any `--ignore-rule` options supplied on the command line.
+
+Use a different configuration file with `--config`:
+
+```bash
+uv run runbookproof scan docs/ \
+  --config config/runbookproof.toml
+```
+
+An explicitly selected configuration file must exist and contain valid TOML.
 
 ## Built-in verification packs
 
@@ -284,7 +313,6 @@ git diff --check
 
 ## Roadmap
 
-- Configuration file and rule-level controls
 - Finding suppression with documented justifications
 - Custom and third-party verification packs
 - Expanded rule documentation

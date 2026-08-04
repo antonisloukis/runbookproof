@@ -800,3 +800,219 @@ def test_scan_rejects_invalid_ignored_rule_id(
 
     assert captured.out == ""
     assert "rule ID must follow the format RBP-PACK-001" in captured.err
+
+
+def test_scan_loads_default_config_ignore_rules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The default configuration should provide ignored rules."""
+    monkeypatch.chdir(tmp_path)
+
+    Path(".runbookproof.toml").write_text(
+        '[scan]\nignore_rules = ["rbp-azure-001"]\n',
+        encoding="utf-8",
+    )
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["finding_count"] == 0
+    assert payload["error_count"] == 0
+    assert payload["exit_code"] == 0
+    assert payload["findings"] == []
+
+
+def test_scan_combines_config_and_cli_ignored_rules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI and configuration ignored rules should be combined."""
+    monkeypatch.chdir(tmp_path)
+
+    Path(".runbookproof.toml").write_text(
+        '[scan]\nignore_rules = ["RBP-FAKE-999"]\n',
+        encoding="utf-8",
+    )
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--ignore-rule",
+                "RBP-AZURE-001",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == (
+        "Scanned risky.md: 1 command, 0 errors, 0 warnings, 0 info\n"
+    )
+    assert captured.err == ""
+
+
+def test_scan_loads_explicit_config_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An explicit configuration path should be supported."""
+    monkeypatch.chdir(tmp_path)
+
+    config_path = Path("config/settings.toml")
+    config_path.parent.mkdir()
+    config_path.write_text(
+        '[scan]\nignore_rules = ["RBP-AZURE-001"]\n',
+        encoding="utf-8",
+    )
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--config",
+                str(config_path),
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == (
+        "Scanned risky.md: 1 command, 0 errors, 0 warnings, 0 info\n"
+    )
+    assert captured.err == ""
+
+
+def test_scan_reports_missing_explicit_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A missing explicit configuration should return two."""
+    monkeypatch.chdir(tmp_path)
+
+    assert (
+        main(
+            [
+                "scan",
+                "README.md",
+                "--config",
+                "missing.toml",
+            ]
+        )
+        == 2
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == ("runbookproof: error: missing.toml: file not found\n")
+
+
+def test_scan_reports_invalid_toml_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Malformed TOML should return two."""
+    monkeypatch.chdir(tmp_path)
+
+    Path(".runbookproof.toml").write_text(
+        "[scan\n",
+        encoding="utf-8",
+    )
+
+    assert main(["scan", "README.md"]) == 2
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert ("runbookproof: error: .runbookproof.toml: invalid TOML:") in captured.err
+
+
+def test_scan_rejects_non_array_config_ignore_rules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Configuration ignore_rules must be a TOML array."""
+    monkeypatch.chdir(tmp_path)
+
+    Path(".runbookproof.toml").write_text(
+        '[scan]\nignore_rules = "RBP-AZURE-001"\n',
+        encoding="utf-8",
+    )
+
+    assert main(["scan", "README.md"]) == 2
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        "runbookproof: error: "
+        ".runbookproof.toml: "
+        "scan.ignore_rules must be an array of rule IDs\n"
+    )
+
+
+def test_scan_rejects_invalid_config_rule_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Malformed configuration rule IDs should be rejected."""
+    monkeypatch.chdir(tmp_path)
+
+    Path(".runbookproof.toml").write_text(
+        '[scan]\nignore_rules = ["not-a-rule"]\n',
+        encoding="utf-8",
+    )
+
+    assert main(["scan", "README.md"]) == 2
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert (
+        "invalid rule ID 'not-a-rule': rule ID must follow the format RBP-PACK-001"
+    ) in captured.err
