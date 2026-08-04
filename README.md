@@ -329,6 +329,14 @@ uv run pytest
 git diff --check
 ```
 
+## Release process
+
+Release preparation and publishing instructions are documented in
+[`docs/releasing.md`](docs/releasing.md).
+
+Release history is maintained in
+[`CHANGELOG.md`](CHANGELOG.md).
+
 ## Roadmap
 
 - Finding suppression with documented justifications
