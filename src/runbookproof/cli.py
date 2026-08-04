@@ -6,6 +6,7 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from collections.abc import Sequence
 from contextlib import redirect_stdout
 from io import StringIO
@@ -37,6 +38,7 @@ SarifLevel = Literal["error", "warning", "note"]
 
 _SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 _PROJECT_URL = "https://github.com/antonisloukis/runbookproof"
+_DEFAULT_CONFIG_PATH = Path(".runbookproof.toml")
 _RULE_ID_PATTERN = re.compile(r"^RBP-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d{3}$")
 
 
@@ -48,6 +50,96 @@ def _rule_id(value: str) -> str:
         raise argparse.ArgumentTypeError("rule ID must follow the format RBP-PACK-001")
 
     return normalized
+
+
+def _print_config_error(
+    path: Path,
+    message: str,
+) -> None:
+    """Print a configuration-file error."""
+    print(
+        f"runbookproof: error: {path}: {message}",
+        file=sys.stderr,
+    )
+
+
+def _load_config_rule_ids(
+    path: Path,
+    *,
+    required: bool,
+) -> frozenset[str] | None:
+    """Load ignored rule IDs from a TOML configuration file."""
+    try:
+        with path.open("rb") as config_file:
+            config = tomllib.load(config_file)
+    except FileNotFoundError:
+        if required:
+            _print_config_error(
+                path,
+                "file not found",
+            )
+            return None
+
+        return frozenset()
+    except tomllib.TOMLDecodeError as error:
+        _print_config_error(
+            path,
+            f"invalid TOML: {error}",
+        )
+        return None
+    except OSError as error:
+        detail = error.strerror or str(error)
+
+        _print_config_error(
+            path,
+            f"cannot read file: {detail}",
+        )
+        return None
+
+    scan_value: object = config.get(
+        "scan",
+        {},
+    )
+
+    if not isinstance(scan_value, dict):
+        _print_config_error(
+            path,
+            "scan must be a TOML table",
+        )
+        return None
+
+    ignore_value: object = scan_value.get(
+        "ignore_rules",
+        [],
+    )
+
+    if not isinstance(ignore_value, list):
+        _print_config_error(
+            path,
+            "scan.ignore_rules must be an array of rule IDs",
+        )
+        return None
+
+    ignored_rule_ids: set[str] = set()
+
+    for value in ignore_value:
+        if not isinstance(value, str):
+            _print_config_error(
+                path,
+                "scan.ignore_rules must contain only strings",
+            )
+            return None
+
+        try:
+            ignored_rule_ids.add(_rule_id(value))
+        except argparse.ArgumentTypeError as error:
+            _print_config_error(
+                path,
+                f"invalid rule ID {value!r}: {error}",
+            )
+            return None
+
+    return frozenset(ignored_rule_ids)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,6 +196,15 @@ def build_parser() -> argparse.ArgumentParser:
         dest="ignored_rule_ids",
         metavar="RULE_ID",
         help=("Ignore findings with this rule ID. May be supplied more than once."),
+    )
+    scan_parser.add_argument(
+        "--config",
+        type=Path,
+        dest="config_path",
+        metavar="PATH",
+        help=(
+            "Load configuration from PATH. Defaults to .runbookproof.toml when present."
+        ),
     )
 
     return parser
@@ -631,12 +732,28 @@ def main(
             Path | None,
             arguments.output_path,
         )
-        ignored_rule_ids = frozenset(
+        cli_ignored_rule_ids = frozenset(
             cast(
                 list[str],
                 arguments.ignored_rule_ids,
             )
         )
+        config_argument = cast(
+            Path | None,
+            arguments.config_path,
+        )
+        config_path = (
+            config_argument if config_argument is not None else _DEFAULT_CONFIG_PATH
+        )
+        config_ignored_rule_ids = _load_config_rule_ids(
+            config_path,
+            required=config_argument is not None,
+        )
+
+        if config_ignored_rule_ids is None:
+            return 2
+
+        ignored_rule_ids = config_ignored_rule_ids | cli_ignored_rule_ids
 
         return _run_scan_with_output(
             path,
