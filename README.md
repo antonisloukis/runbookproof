@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="docs/assets/runbookproof-icon.png"
+    src="docs/assets/runbookproof.icon.png"
     alt="RunbookProof logo"
     width="170"
   />
