@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 
 from runbookproof import __version__
 from runbookproof.cli import main
+from runbookproof.rules import RULES
 
 
 def test_main_without_arguments_displays_help(
@@ -1016,3 +1018,93 @@ def test_scan_rejects_invalid_config_rule_id(
     assert (
         "invalid rule ID 'not-a-rule': rule ID must follow the format RBP-PACK-001"
     ) in captured.err
+
+
+def test_rules_command_displays_catalog(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The rules command should display a text catalogue."""
+    assert main(["rules"]) == 0
+
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+
+    assert captured.err == ""
+    assert lines[0].startswith("RULE ID")
+    assert len(lines) == len(RULES) + 1
+
+    displayed_rule_ids = [line.split(maxsplit=1)[0] for line in lines[1:]]
+
+    assert displayed_rule_ids == [rule.rule_id for rule in RULES]
+
+
+def test_rules_command_supports_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The rules command should support JSON output."""
+    assert main(["rules", "--format", "json"]) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["rule_count"] == len(RULES)
+    assert payload["rules"] == [
+        {
+            "rule_id": rule.rule_id,
+            "pack": rule.pack_name,
+            "messages": list(rule.messages),
+        }
+        for rule in RULES
+    ]
+
+
+def test_rule_catalog_is_unique_and_sorted() -> None:
+    """Rule IDs should be unique and deterministic."""
+    rule_ids = [rule.rule_id for rule in RULES]
+
+    assert rule_ids == sorted(rule_ids)
+    assert len(rule_ids) == len(set(rule_ids))
+
+
+def test_rule_catalog_supports_message_variants() -> None:
+    """One rule ID may have multiple valid messages."""
+    bash_rule = next(rule for rule in RULES if rule.rule_id == "RBP-BASH-002")
+
+    assert len(bash_rule.messages) >= 2
+
+
+def test_rule_catalog_matches_pack_source() -> None:
+    """Every literal pack rule should be catalogued."""
+    discovered_rule_ids: set[str] = set()
+
+    for path in Path("src/runbookproof/packs").glob("*.py"):
+        tree = ast.parse(
+            path.read_text(encoding="utf-8"),
+            filename=str(path),
+        )
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.keyword):
+                continue
+
+            if node.arg != "rule_id":
+                continue
+
+            try:
+                value = ast.literal_eval(node.value)
+            except (ValueError, TypeError):
+                continue
+
+            if isinstance(value, str) and value.startswith("RBP-"):
+                discovered_rule_ids.add(value)
+
+    assert {rule.rule_id for rule in RULES} == discovered_rule_ids
+
+
+def test_rule_documentation_contains_catalog() -> None:
+    """The generated reference should list every rule."""
+    documentation = Path("docs/rules.md").read_text(encoding="utf-8")
+
+    for rule in RULES:
+        assert f"| `{rule.rule_id}` |" in documentation

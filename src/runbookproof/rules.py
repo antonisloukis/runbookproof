@@ -1,0 +1,506 @@
+"""Built-in RunbookProof rule catalogue."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class RuleInfo:
+    """Describe one built-in RunbookProof rule."""
+
+    rule_id: str
+    pack_name: str
+    messages: tuple[str, ...]
+
+    @property
+    def description(self) -> str:
+        """Return all known static message variants."""
+        return " / ".join(self.messages)
+
+
+RULES: tuple[RuleInfo, ...] = (
+    RuleInfo(
+        rule_id="RBP-AWS-001",
+        pack_name="aws-cli",
+        messages=("AWS CLI TLS certificate verification is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-002",
+        pack_name="aws-cli",
+        messages=("AWS CLI command contains a literal credential",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-003",
+        pack_name="aws-cli",
+        messages=("AWS CLI command deletes or destroys resources",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-004",
+        pack_name="aws-cli",
+        messages=("AWS resource safety controls are bypassed",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-005",
+        pack_name="aws-cli",
+        messages=("AWS EC2 mutation has no dry-run permission check",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-006",
+        pack_name="aws-cli",
+        messages=("AWS CLI command enables public S3 access",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-007",
+        pack_name="aws-cli",
+        messages=("EC2 security-group ingress is open to the internet",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-008",
+        pack_name="aws-cli",
+        messages=("AWS IAM command grants broad administrative access",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-009",
+        pack_name="aws-cli",
+        messages=("AWS CLI command returns sensitive credential material",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-010",
+        pack_name="aws-cli",
+        messages=("AWS CLI command uses an unencrypted HTTP endpoint",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-011",
+        pack_name="aws-cli",
+        messages=("AWS security monitoring is disabled or deleted",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-012",
+        pack_name="aws-cli",
+        messages=("AWS database resource is configured as public",),
+    ),
+    RuleInfo(
+        rule_id="RBP-AWS-013",
+        pack_name="aws-cli",
+        messages=("AWS CLI request is sent without request signing",),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-001",
+        pack_name="bash",
+        messages=("Remote script is piped directly to a shell",),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-002",
+        pack_name="bash",
+        messages=(
+            "Command performs recursive deletion",
+            "Recursive deletion targets a critical path",
+        ),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-003",
+        pack_name="bash",
+        messages=("Command grants world-writable permissions",),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-004",
+        pack_name="bash",
+        messages=("Command requires elevated privileges",),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-005",
+        pack_name="bash",
+        messages=("Destructive command contains an unquoted variable",),
+    ),
+    RuleInfo(
+        rule_id="RBP-BASH-006",
+        pack_name="bash",
+        messages=("Command may not be portable across POSIX shells",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-001",
+        pack_name="docker",
+        messages=("Remote Docker daemon connection is not verified",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-002",
+        pack_name="docker",
+        messages=("Container is granted unrestricted host privileges",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-003",
+        pack_name="docker",
+        messages=("Container shares host namespaces",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-004",
+        pack_name="docker",
+        messages=("Container mounts the Docker daemon socket",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-005",
+        pack_name="docker",
+        messages=("Container mounts a sensitive host path",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-006",
+        pack_name="docker",
+        messages=("Container explicitly runs as root",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-007",
+        pack_name="docker",
+        messages=("Container image is not pinned by digest",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-008",
+        pack_name="docker",
+        messages=("Container security controls are disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-009",
+        pack_name="docker",
+        messages=("Container receives dangerous Linux capabilities",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-010",
+        pack_name="docker",
+        messages=("Finding generated by the docker verification pack.",),
+    ),
+    RuleInfo(
+        rule_id="RBP-DOCKER-011",
+        pack_name="docker",
+        messages=("Command contains a literal secret value",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-001",
+        pack_name="git",
+        messages=("Hard reset can permanently discard local changes",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-002",
+        pack_name="git",
+        messages=("Forced push can overwrite remote history",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-003",
+        pack_name="git",
+        messages=("Force-with-lease can rewrite remote history",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-004",
+        pack_name="git",
+        messages=(
+            "Git clean can remove untracked directories or files",
+            "Git clean permanently removes untracked files",
+        ),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-005",
+        pack_name="git",
+        messages=("Forced branch deletion can remove unmerged work",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-006",
+        pack_name="git",
+        messages=("Command can discard working-tree changes",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-007",
+        pack_name="git",
+        messages=("Command deletes a remote Git branch",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-008",
+        pack_name="git",
+        messages=("Git pull does not specify an integration strategy",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-009",
+        pack_name="git",
+        messages=("Branch creation uses legacy checkout syntax",),
+    ),
+    RuleInfo(
+        rule_id="RBP-GIT-010",
+        pack_name="git",
+        messages=("Command permanently removes Git stash entries",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-001",
+        pack_name="kubectl",
+        messages=("Kubernetes API certificate verification is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-002",
+        pack_name="kubectl",
+        messages=("kubectl command contains a literal credential",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-003",
+        pack_name="kubectl",
+        messages=("Mutation targets every Kubernetes namespace",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-004",
+        pack_name="kubectl",
+        messages=("kubectl command deletes Kubernetes resources",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-005",
+        pack_name="kubectl",
+        messages=("kubectl command bypasses graceful safety controls",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-006",
+        pack_name="kubectl",
+        messages=("Mutation selects all matching Kubernetes resources",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-007",
+        pack_name="kubectl",
+        messages=("kubectl mutation has no dry-run preview",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-008",
+        pack_name="kubectl",
+        messages=("Server-side apply forcibly overrides field conflicts",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-009",
+        pack_name="kubectl",
+        messages=("kubectl command opens an interactive cluster session",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-010",
+        pack_name="kubectl",
+        messages=("kubectl command contains a literal secret value",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-011",
+        pack_name="kubectl",
+        messages=("Kubernetes workload image is not pinned by digest",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-012",
+        pack_name="kubectl",
+        messages=("kubectl command creates privileged workload access",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-013",
+        pack_name="kubectl",
+        messages=("Kubernetes object schema validation is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-KUBECTL-014",
+        pack_name="kubectl",
+        messages=("kubectl command accesses a raw Kubernetes API path",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-001",
+        pack_name="node-package",
+        messages=("Package manager disables transport security",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-002",
+        pack_name="node-package",
+        messages=("Executed package does not specify a version",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-003",
+        pack_name="node-package",
+        messages=("Package execution suppresses confirmation",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-004",
+        pack_name="node-package",
+        messages=("Command installs a package globally",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-005",
+        pack_name="node-package",
+        messages=("Dependency safety checks are bypassed",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-006",
+        pack_name="node-package",
+        messages=("Dependency installation may not be reproducible",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-007",
+        pack_name="node-package",
+        messages=("Package lifecycle scripts are explicitly enabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-008",
+        pack_name="node-package",
+        messages=("Package security checks are disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-NODE-009",
+        pack_name="node-package",
+        messages=("npm --save is redundant in modern npm",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-001",
+        pack_name="python-package",
+        messages=("Python package transport security is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-002",
+        pack_name="python-package",
+        messages=("Python package installation is not exactly pinned",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-003",
+        pack_name="python-package",
+        messages=("Remote Python package source is not immutable",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-004",
+        pack_name="python-package",
+        messages=("Command can modify a system-managed Python installation",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-005",
+        pack_name="python-package",
+        messages=("Requirements installation does not require hashes",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-006",
+        pack_name="python-package",
+        messages=("Package hash verification is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-007",
+        pack_name="python-package",
+        messages=("uv sync may update the project lockfile",),
+    ),
+    RuleInfo(
+        rule_id="RBP-PYTHON-008",
+        pack_name="python-package",
+        messages=("Command uses a legacy Python installation interface",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-001",
+        pack_name="terraform",
+        messages=("Terraform changes are automatically approved without a saved plan",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-002",
+        pack_name="terraform",
+        messages=("Terraform command destroys managed infrastructure",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-003",
+        pack_name="terraform",
+        messages=("Terraform apply generates a new plan at execution time",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-004",
+        pack_name="terraform",
+        messages=("Terraform operation uses targeted or forced resource scope",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-005",
+        pack_name="terraform",
+        messages=("Terraform state locking is disabled",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-006",
+        pack_name="terraform",
+        messages=("Terraform state lock is forcibly removed",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-007",
+        pack_name="terraform",
+        messages=("Finding generated by the terraform verification pack.",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-008",
+        pack_name="terraform",
+        messages=("Terraform state push disables remote state safety checks",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-009",
+        pack_name="terraform",
+        messages=("Terraform command contains a literal secret value",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-010",
+        pack_name="terraform",
+        messages=(
+            "Terraform command exposes potentially sensitive state or output data",
+        ),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-011",
+        pack_name="terraform",
+        messages=("Terraform refresh command is deprecated",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-012",
+        pack_name="terraform",
+        messages=("Terraform initialization upgrades dependency selections",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-013",
+        pack_name="terraform",
+        messages=("Terraform workspace is deleted",),
+    ),
+    RuleInfo(
+        rule_id="RBP-TERRAFORM-014",
+        pack_name="terraform",
+        messages=("Terraform import modifies resource state directly",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-001",
+        pack_name="universal",
+        messages=("Command contains invalid shell syntax",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-002",
+        pack_name="universal",
+        messages=("Command has no detectable executable",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-010",
+        pack_name="universal",
+        messages=("Command uses a shell pipeline",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-011",
+        pack_name="universal",
+        messages=("Command uses conditional command chaining",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-012",
+        pack_name="universal",
+        messages=("Command contains sequential operations",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-013",
+        pack_name="universal",
+        messages=("Command starts a background operation",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-014",
+        pack_name="universal",
+        messages=("Command redirects shell input or output",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-015",
+        pack_name="universal",
+        messages=("Command performs command substitution",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-016",
+        pack_name="universal",
+        messages=("Command performs process substitution",),
+    ),
+    RuleInfo(
+        rule_id="RBP-UNIVERSAL-017",
+        pack_name="universal",
+        messages=("Command performs arithmetic expansion",),
+    ),
+)
