@@ -63,7 +63,7 @@ uv run runbookproof scan docs/
 ## Usage
 
 ```text
-runbookproof scan PATH [--format {text,json,sarif}] [-o OUTPUT]
+runbookproof scan PATH [--format {text,json,sarif}] [-o OUTPUT] [--ignore-rule RULE_ID]
 ```
 
 ### Human-readable output
@@ -121,6 +121,25 @@ uv run runbookproof scan README.md \
   --format sarif \
   -o runbookproof.sarif
 ```
+
+### Ignore selected rules
+
+Ignore a finding by its rule ID:
+
+```bash
+uv run runbookproof scan docs/ \
+  --ignore-rule RBP-AZURE-001
+```
+
+The option can be repeated and rule IDs are case-insensitive:
+
+```bash
+uv run runbookproof scan docs/ \
+  --ignore-rule RBP-AZURE-001 \
+  --ignore-rule RBP-AWS-002
+```
+
+Ignored findings are removed from text, JSON, and SARIF output. They are also excluded from finding counts and exit-code calculation.
 
 ## Built-in verification packs
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 from contextlib import redirect_stdout
@@ -36,6 +37,17 @@ SarifLevel = Literal["error", "warning", "note"]
 
 _SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 _PROJECT_URL = "https://github.com/antonisloukis/runbookproof"
+_RULE_ID_PATTERN = re.compile(r"^RBP-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d{3}$")
+
+
+def _rule_id(value: str) -> str:
+    """Validate and normalize one ignored rule ID."""
+    normalized = value.strip().upper()
+
+    if not _RULE_ID_PATTERN.fullmatch(normalized):
+        raise argparse.ArgumentTypeError("rule ID must follow the format RBP-PACK-001")
+
+    return normalized
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +95,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         dest="output_path",
         help="Write scan output to a UTF-8 file instead of standard output.",
+    )
+    scan_parser.add_argument(
+        "--ignore-rule",
+        action="append",
+        default=[],
+        type=_rule_id,
+        dest="ignored_rule_ids",
+        metavar="RULE_ID",
+        help=("Ignore findings with this rule ID. May be supplied more than once."),
     )
 
     return parser
@@ -379,16 +400,42 @@ def _markdown_files(
     )
 
 
+def _filter_report(
+    report: AnalysisReport,
+    ignored_rule_ids: frozenset[str],
+) -> AnalysisReport:
+    """Return a report without findings from ignored rules."""
+    if not ignored_rule_ids:
+        return report
+
+    return AnalysisReport(
+        path=report.path,
+        parse_results=report.parse_results,
+        findings=tuple(
+            finding
+            for finding in report.findings
+            if finding.rule_id not in ignored_rule_ids
+        ),
+        pack_names=report.pack_names,
+    )
+
+
 def _run_file_scan(
     path: Path,
     engine: VerificationEngine,
     output_format: OutputFormat,
+    ignored_rule_ids: frozenset[str],
 ) -> int:
     """Scan one Markdown file."""
     report = _analyze_file(path, engine)
 
     if report is None:
         return 2
+
+    report = _filter_report(
+        report,
+        ignored_rule_ids,
+    )
 
     if output_format == "json":
         payload = _report_to_dict(report)
@@ -406,6 +453,7 @@ def _run_directory_scan(
     path: Path,
     engine: VerificationEngine,
     output_format: OutputFormat,
+    ignored_rule_ids: frozenset[str],
 ) -> int:
     """Recursively scan Markdown files."""
     files = _markdown_files(path)
@@ -420,7 +468,12 @@ def _run_directory_scan(
         if report is None:
             return 2
 
-        reports.append(report)
+        reports.append(
+            _filter_report(
+                report,
+                ignored_rule_ids,
+            )
+        )
 
     command_count = sum(report.command_count for report in reports)
     finding_count = sum(report.finding_count for report in reports)
@@ -480,6 +533,7 @@ def _run_directory_scan(
 def _run_scan(
     path: Path,
     output_format: OutputFormat,
+    ignored_rule_ids: frozenset[str],
 ) -> int:
     """Scan one Markdown file or directory."""
     engine = VerificationEngine(
@@ -491,12 +545,14 @@ def _run_scan(
             path,
             engine,
             output_format,
+            ignored_rule_ids,
         )
 
     return _run_file_scan(
         path,
         engine,
         output_format,
+        ignored_rule_ids,
     )
 
 
@@ -504,12 +560,14 @@ def _run_scan_with_output(
     path: Path,
     output_format: OutputFormat,
     output_path: Path | None,
+    ignored_rule_ids: frozenset[str],
 ) -> int:
     """Run a scan and optionally write its output to a file."""
     if output_path is None:
         return _run_scan(
             path,
             output_format,
+            ignored_rule_ids,
         )
 
     if path.is_file() and path.resolve() == output_path.resolve():
@@ -525,6 +583,7 @@ def _run_scan_with_output(
         exit_code = _run_scan(
             path,
             output_format,
+            ignored_rule_ids,
         )
 
     if exit_code == 2:
@@ -572,11 +631,18 @@ def main(
             Path | None,
             arguments.output_path,
         )
+        ignored_rule_ids = frozenset(
+            cast(
+                list[str],
+                arguments.ignored_rule_ids,
+            )
+        )
 
         return _run_scan_with_output(
             path,
             output_format,
             output_path,
+            ignored_rule_ids,
         )
 
     parser.error(f"unknown command: {command}")
