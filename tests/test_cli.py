@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -204,3 +205,154 @@ def test_scan_directory_reports_invalid_utf8(
 
     assert captured.out == ""
     assert captured.err == ("runbookproof: error: docs/invalid.md is not valid UTF-8\n")
+
+
+def test_scan_file_supports_json_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A single-file scan should support JSON output."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--format",
+                "json",
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["kind"] == "file"
+    assert payload["path"] == "risky.md"
+    assert payload["command_count"] == 1
+    assert payload["finding_count"] == 1
+    assert payload["error_count"] == 1
+    assert payload["warning_count"] == 0
+    assert payload["info_count"] == 0
+    assert payload["exit_code"] == 1
+
+    finding = payload["findings"][0]
+
+    assert finding["rule_id"] == "RBP-AZURE-001"
+    assert finding["severity"] == "error"
+    assert finding["location"] == "risky.md:2"
+    assert finding["command"]["raw_text"] == ("az group delete --name production --yes")
+    assert finding["command"]["source"] == {
+        "path": "risky.md",
+        "start_line": 2,
+        "end_line": 2,
+    }
+
+
+def test_scan_directory_supports_json_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A directory scan should return aggregated JSON."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    nested = docs / "operations"
+    nested.mkdir(parents=True)
+
+    (docs / "safe.md").write_text(
+        "```bash\naz group list\n```\n",
+        encoding="utf-8",
+    )
+    (nested / "risky.md").write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(docs),
+                "--format",
+                "json",
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["kind"] == "directory"
+    assert payload["path"] == "docs"
+    assert payload["markdown_file_count"] == 2
+    assert payload["command_count"] == 2
+    assert payload["finding_count"] == 1
+    assert payload["error_count"] == 1
+    assert payload["warning_count"] == 0
+    assert payload["info_count"] == 0
+    assert payload["exit_code"] == 1
+
+    reports = payload["reports"]
+
+    assert [report["path"] for report in reports] == [
+        "docs/operations/risky.md",
+        "docs/safe.md",
+    ]
+
+    assert reports[0]["findings"][0]["rule_id"] == ("RBP-AZURE-001")
+    assert reports[1]["findings"] == []
+
+
+def test_scan_empty_directory_supports_json_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty directory should produce valid JSON."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    docs.mkdir()
+
+    assert (
+        main(
+            [
+                "scan",
+                str(docs),
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload == {
+        "kind": "directory",
+        "path": "docs",
+        "markdown_file_count": 0,
+        "command_count": 0,
+        "finding_count": 0,
+        "error_count": 0,
+        "warning_count": 0,
+        "info_count": 0,
+        "exit_code": 0,
+        "reports": [],
+    }
