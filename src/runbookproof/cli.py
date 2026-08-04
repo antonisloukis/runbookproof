@@ -32,8 +32,10 @@ from runbookproof.packs import (
     TerraformPack,
     UniversalPack,
 )
+from runbookproof.rules import RULES, RuleInfo
 
 OutputFormat = Literal["text", "json", "sarif"]
+RulesFormat = Literal["text", "json"]
 SarifLevel = Literal["error", "warning", "note"]
 
 _SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -207,6 +209,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    rules_parser = subparsers.add_parser(
+        "rules",
+        help="List built-in static-analysis rules.",
+        description=("Display the built-in RunbookProof rule catalogue."),
+    )
+    rules_parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        dest="output_format",
+        help="Output format. Defaults to text.",
+    )
+
     return parser
 
 
@@ -224,6 +239,49 @@ def _built_in_packs() -> tuple[VerificationPack, ...]:
         BashPack(),
         UniversalPack(),
     )
+
+
+def _rule_to_dict(
+    rule: RuleInfo,
+) -> dict[str, object]:
+    """Convert one catalogue rule into JSON data."""
+    return {
+        "rule_id": rule.rule_id,
+        "pack": rule.pack_name,
+        "messages": list(rule.messages),
+    }
+
+
+def _print_rule_catalog(
+    output_format: RulesFormat,
+) -> None:
+    """Print the built-in rule catalogue."""
+    if output_format == "json":
+        _print_json(
+            {
+                "rule_count": len(RULES),
+                "rules": [_rule_to_dict(rule) for rule in RULES],
+            }
+        )
+        return
+
+    rule_id_width = max(
+        len("RULE ID"),
+        *(len(rule.rule_id) for rule in RULES),
+    )
+    pack_width = max(
+        len("PACK"),
+        *(len(rule.pack_name) for rule in RULES),
+    )
+
+    print(f"{'RULE ID':<{rule_id_width}}  {'PACK':<{pack_width}}  DESCRIPTION")
+
+    for rule in RULES:
+        print(
+            f"{rule.rule_id:<{rule_id_width}}  "
+            f"{rule.pack_name:<{pack_width}}  "
+            f"{rule.description}"
+        )
 
 
 def _pluralized(count: int, noun: str) -> str:
@@ -717,6 +775,14 @@ def main(
 
     if command is None:
         parser.print_help()
+        return 0
+
+    if command == "rules":
+        rules_format = cast(
+            RulesFormat,
+            arguments.output_format,
+        )
+        _print_rule_catalog(rules_format)
         return 0
 
     if command == "scan":

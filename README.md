@@ -64,6 +64,7 @@ uv run runbookproof scan docs/
 
 ```text
 runbookproof scan PATH [--format {text,json,sarif}] [-o OUTPUT] [--ignore-rule RULE_ID] [--config PATH]
+runbookproof rules [--format {text,json}]
 ```
 
 ### Human-readable output
@@ -169,6 +170,23 @@ uv run runbookproof scan docs/ \
 ```
 
 An explicitly selected configuration file must exist and contain valid TOML.
+
+## Rule catalogue
+
+List every built-in rule:
+
+```bash
+uv run runbookproof rules
+```
+
+Generate machine-readable output:
+
+```bash
+uv run runbookproof rules --format json
+```
+
+The complete reference is available in
+[`docs/rules.md`](docs/rules.md).
 
 ## Built-in verification packs
 
@@ -315,7 +333,6 @@ git diff --check
 
 - Finding suppression with documented justifications
 - Custom and third-party verification packs
-- Expanded rule documentation
 - Reusable GitHub Action distribution
 - First public package release
 
