@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    src="docs/assets/runbookproof-icon.png"
+    alt="RunbookProof logo"
+    width="170"
+  />
+</p>
+
 # RunbookProof
 
 [![CI](https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml/badge.svg)](https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml)
