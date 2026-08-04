@@ -29,7 +29,11 @@ from runbookproof.packs import (
     UniversalPack,
 )
 
-OutputFormat = Literal["text", "json"]
+OutputFormat = Literal["text", "json", "sarif"]
+SarifLevel = Literal["error", "warning", "note"]
+
+_SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
+_PROJECT_URL = "https://github.com/antonisloukis/runbookproof"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan_parser.add_argument(
         "--format",
-        choices=("text", "json"),
+        choices=("text", "json", "sarif"),
         default="text",
         dest="output_format",
         help="Output format. Defaults to text.",
@@ -111,7 +115,10 @@ def _report_summary(report: AnalysisReport) -> str:
         (
             _pluralized(report.command_count, "command"),
             _pluralized(report.error_count, "error"),
-            _pluralized(report.warning_count, "warning"),
+            _pluralized(
+                report.warning_count,
+                "warning",
+            ),
             f"{report.info_count} info",
         )
     )
@@ -123,7 +130,9 @@ def _print_report(report: AnalysisReport) -> None:
     print(f"Scanned {report.path}: {_report_summary(report)}")
 
 
-def _finding_to_dict(finding: Finding) -> dict[str, object]:
+def _finding_to_dict(
+    finding: Finding,
+) -> dict[str, object]:
     """Convert one finding into JSON-compatible data."""
     command = finding.command
     source = command.source
@@ -139,7 +148,7 @@ def _finding_to_dict(finding: Finding) -> dict[str, object]:
             "language": command.language,
             "executable": command.executable,
             "arguments": list(command.arguments),
-            "working_directory": command.working_directory,
+            "working_directory": (command.working_directory),
             "source": {
                 "path": source.path,
                 "start_line": source.start_line,
@@ -157,8 +166,10 @@ def _finding_to_dict(finding: Finding) -> dict[str, object]:
     }
 
 
-def _report_to_dict(report: AnalysisReport) -> dict[str, object]:
-    """Convert one analysis report into JSON-compatible data."""
+def _report_to_dict(
+    report: AnalysisReport,
+) -> dict[str, object]:
+    """Convert one analysis report into JSON data."""
     return {
         "path": report.path,
         "command_count": report.command_count,
@@ -169,6 +180,112 @@ def _report_to_dict(report: AnalysisReport) -> dict[str, object]:
         "exit_code": report.exit_code,
         "pack_names": list(report.pack_names),
         "findings": [_finding_to_dict(finding) for finding in report.findings],
+    }
+
+
+def _sarif_level(finding: Finding) -> SarifLevel:
+    """Map a RunbookProof severity to a SARIF level."""
+    if finding.severity.value == "error":
+        return "error"
+
+    if finding.severity.value == "warning":
+        return "warning"
+
+    return "note"
+
+
+def _finding_to_sarif_rule(
+    finding: Finding,
+) -> dict[str, object]:
+    """Convert one finding into a SARIF rule."""
+    return {
+        "id": finding.rule_id,
+        "shortDescription": {
+            "text": finding.message,
+        },
+        "defaultConfiguration": {
+            "level": _sarif_level(finding),
+        },
+    }
+
+
+def _finding_to_sarif_result(
+    finding: Finding,
+) -> dict[str, object]:
+    """Convert one finding into a SARIF result."""
+    command = finding.command
+    source = command.source
+
+    return {
+        "ruleId": finding.rule_id,
+        "level": _sarif_level(finding),
+        "message": {
+            "text": finding.message,
+        },
+        "locations": [
+            {
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": source.path.replace(
+                            "\\",
+                            "/",
+                        ),
+                    },
+                    "region": {
+                        "startLine": source.start_line,
+                        "endLine": source.end_line,
+                    },
+                }
+            }
+        ],
+        "partialFingerprints": {
+            "runbookproofFingerprint": (finding.fingerprint),
+        },
+        "properties": {
+            "severity": finding.severity.value,
+            "command": command.raw_text,
+            "language": command.language,
+            "evidence": [evidence.message for evidence in finding.evidence],
+        },
+    }
+
+
+def _sarif_payload(
+    reports: Sequence[AnalysisReport],
+) -> dict[str, object]:
+    """Build a SARIF 2.1.0 document."""
+    findings = tuple(finding for report in reports for finding in report.findings)
+
+    rules_by_id: dict[str, Finding] = {}
+
+    for finding in findings:
+        rules_by_id.setdefault(
+            finding.rule_id,
+            finding,
+        )
+
+    rules = [
+        _finding_to_sarif_rule(rules_by_id[rule_id]) for rule_id in sorted(rules_by_id)
+    ]
+
+    results = [_finding_to_sarif_result(finding) for finding in findings]
+
+    return {
+        "$schema": _SARIF_SCHEMA,
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "RunbookProof",
+                        "version": __version__,
+                        "informationUri": _PROJECT_URL,
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
     }
 
 
@@ -219,12 +336,14 @@ def _analyze_file(
     )
 
 
-def _markdown_files(directory: Path) -> tuple[Path, ...]:
-    """Return Markdown files below a directory in stable order."""
+def _markdown_files(
+    directory: Path,
+) -> tuple[Path, ...]:
+    """Return Markdown files in stable order."""
     files = (
         path
         for path in directory.rglob("*")
-        if path.is_file() and path.suffix.lower() == ".md"
+        if (path.is_file() and path.suffix.lower() == ".md")
     )
 
     return tuple(
@@ -250,6 +369,8 @@ def _run_file_scan(
         payload = _report_to_dict(report)
         payload["kind"] = "file"
         _print_json(payload)
+    elif output_format == "sarif":
+        _print_json(_sarif_payload((report,)))
     else:
         _print_report(report)
 
@@ -261,12 +382,15 @@ def _run_directory_scan(
     engine: VerificationEngine,
     output_format: OutputFormat,
 ) -> int:
-    """Recursively scan Markdown files in one directory."""
+    """Recursively scan Markdown files."""
     files = _markdown_files(path)
     reports: list[AnalysisReport] = []
 
     for markdown_path in files:
-        report = _analyze_file(markdown_path, engine)
+        report = _analyze_file(
+            markdown_path,
+            engine,
+        )
 
         if report is None:
             return 2
@@ -295,6 +419,8 @@ def _run_directory_scan(
                 "reports": [_report_to_dict(report) for report in reports],
             }
         )
+    elif output_format == "sarif":
+        _print_json(_sarif_payload(reports))
     else:
         for report in reports:
             _print_findings(report)
@@ -305,8 +431,14 @@ def _run_directory_scan(
                     len(files),
                     "Markdown file",
                 ),
-                _pluralized(command_count, "command"),
-                _pluralized(error_count, "error"),
+                _pluralized(
+                    command_count,
+                    "command",
+                ),
+                _pluralized(
+                    error_count,
+                    "error",
+                ),
                 _pluralized(
                     warning_count,
                     "warning",
@@ -343,13 +475,20 @@ def _run_scan(
     )
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run the RunbookProof command-line interface."""
+def main(
+    argv: Sequence[str] | None = None,
+) -> int:
+    """Run the RunbookProof CLI."""
     parser = build_parser()
     arguments = parser.parse_args(argv)
+
     command = cast(
         str | None,
-        getattr(arguments, "command", None),
+        getattr(
+            arguments,
+            "command",
+            None,
+        ),
     )
 
     if command is None:
@@ -357,7 +496,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if command == "scan":
-        path = cast(Path, arguments.path)
+        path = cast(
+            Path,
+            arguments.path,
+        )
         output_format = cast(
             OutputFormat,
             arguments.output_format,
