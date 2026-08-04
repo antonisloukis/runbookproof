@@ -45,6 +45,8 @@ runbookproof = "runbookproof.cli:main"
 Homepage = "https://github.com/antonisloukis/runbookproof"
 Repository = "https://github.com/antonisloukis/runbookproof"
 Issues = "https://github.com/antonisloukis/runbookproof/issues"
+Changelog = "https://github.com/antonisloukis/runbookproof/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/antonisloukis/runbookproof/tree/main/docs"
 
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12.0"]
