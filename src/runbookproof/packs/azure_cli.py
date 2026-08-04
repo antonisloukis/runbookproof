@@ -1,6 +1,14 @@
 import shlex
 from dataclasses import dataclass
 
+from runbookproof.models import (
+    Evidence,
+    EvidenceKind,
+    Finding,
+    Severity,
+    ShellParseResult,
+)
+
 _AZURE_GLOBAL_FLAGS = {
     "--debug",
     "--help",
@@ -224,3 +232,85 @@ def analyze_azure_command(command: str) -> str | None:
         return None
 
     return detect_azure_problem(invocation)
+
+
+_AZURE_FINDING_METADATA: dict[
+    str,
+    tuple[str, Severity, str],
+] = {
+    "Detected deletion of an Azure resource group.": (
+        "RBP-AZURE-001",
+        Severity.ERROR,
+        "Azure CLI command deletes a resource group",
+    ),
+    "Detected assignment of a privileged Azure role.": (
+        "RBP-AZURE-002",
+        Severity.ERROR,
+        "Azure CLI command assigns a privileged role",
+    ),
+    ("Detected Azure role assignment at subscription or management-group scope."): (
+        "RBP-AZURE-003",
+        Severity.WARNING,
+        "Azure role assignment uses a broad scope",
+    ),
+    ("Detected an inbound Azure NSG rule open to the public internet."): (
+        "RBP-AZURE-004",
+        Severity.ERROR,
+        "Azure NSG ingress is open to the public internet",
+    ),
+    "Detected public access on an Azure Storage container.": (
+        "RBP-AZURE-005",
+        Severity.ERROR,
+        "Azure Storage container allows public access",
+    ),
+}
+
+
+class AzureCliPack:
+    """Detect dangerous and overly permissive Azure CLI commands."""
+
+    name = "azure-cli"
+
+    def supports(self, result: ShellParseResult) -> bool:
+        """Support successfully parsed Azure CLI operations."""
+        return (
+            result.error is None
+            and result.command.executable == "az"
+            and parse_azure_command(result.command.raw_text) is not None
+        )
+
+    def verify(
+        self,
+        result: ShellParseResult,
+    ) -> tuple[Finding, ...]:
+        """Return deterministic findings for one Azure CLI command."""
+        if result.error is not None:
+            return ()
+
+        invocation = parse_azure_command(result.command.raw_text)
+
+        if invocation is None:
+            return ()
+
+        problem = detect_azure_problem(invocation)
+
+        if problem is None:
+            return ()
+
+        rule_id, severity, message = _AZURE_FINDING_METADATA[problem]
+
+        return (
+            Finding(
+                rule_id=rule_id,
+                severity=severity,
+                message=message,
+                command=result.command,
+                evidence=(
+                    Evidence(
+                        kind=EvidenceKind.STATIC_ANALYSIS,
+                        message=problem,
+                        source="RunbookProof Azure CLI pack",
+                    ),
+                ),
+            ),
+        )
