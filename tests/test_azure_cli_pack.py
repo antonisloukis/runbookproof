@@ -6,7 +6,7 @@ from runbookproof.packs.azure_cli import (
 )
 
 
-def test_parses_basic_azure_command():
+def test_parses_basic_azure_command() -> None:
     invocation = parse_azure_command("az group delete --name production --yes")
 
     assert invocation is not None
@@ -20,7 +20,7 @@ def test_parses_basic_azure_command():
     )
 
 
-def test_parses_nested_azure_command():
+def test_parses_nested_azure_command() -> None:
     invocation = parse_azure_command(
         "az role assignment create --role Owner --scope /subscriptions/example"
     )
@@ -33,7 +33,7 @@ def test_parses_nested_azure_command():
     )
 
 
-def test_parses_quoted_argument():
+def test_parses_quoted_argument() -> None:
     invocation = parse_azure_command('az group delete --name "production resources"')
 
     assert invocation is not None
@@ -43,7 +43,7 @@ def test_parses_quoted_argument():
     )
 
 
-def test_parses_leading_global_option():
+def test_parses_leading_global_option() -> None:
     invocation = parse_azure_command(
         "az --subscription example-subscription group list"
     )
@@ -53,25 +53,25 @@ def test_parses_leading_global_option():
     assert invocation.arguments == ()
 
 
-def test_parser_ignores_non_azure_command():
+def test_parser_ignores_non_azure_command() -> None:
     assert parse_azure_command("aws s3 ls") is None
 
 
-def test_rejects_empty_command():
+def test_rejects_empty_command() -> None:
     assert parse_azure_command("") is None
 
 
-def test_rejects_incomplete_azure_command():
+def test_rejects_incomplete_azure_command() -> None:
     assert parse_azure_command("az group") is None
 
 
-def test_rejects_invalid_quotes():
+def test_rejects_invalid_quotes() -> None:
     command = 'az group delete --name "broken'
 
     assert parse_azure_command(command) is None
 
 
-def test_detects_resource_group_deletion():
+def test_detects_resource_group_deletion() -> None:
     invocation = AzureInvocation(
         command=("group", "delete"),
         arguments=("--name", "production"),
@@ -82,7 +82,7 @@ def test_detects_resource_group_deletion():
     assert result == "Detected deletion of an Azure resource group."
 
 
-def test_safe_resource_group_list_has_no_problem():
+def test_safe_resource_group_list_has_no_problem() -> None:
     invocation = AzureInvocation(
         command=("group", "list"),
         arguments=(),
@@ -91,7 +91,7 @@ def test_safe_resource_group_list_has_no_problem():
     assert detect_azure_problem(invocation) is None
 
 
-def test_detects_privileged_owner_assignment():
+def test_detects_privileged_owner_assignment() -> None:
     command = (
         "az role assignment create "
         "--assignee admin@example.com "
@@ -104,7 +104,7 @@ def test_detects_privileged_owner_assignment():
     assert result == "Detected assignment of a privileged Azure role."
 
 
-def test_detects_privileged_contributor_assignment():
+def test_detects_privileged_contributor_assignment() -> None:
     command = (
         "az role assignment create "
         "--assignee automation-account "
@@ -117,7 +117,7 @@ def test_detects_privileged_contributor_assignment():
     assert result == "Detected assignment of a privileged Azure role."
 
 
-def test_detects_subscription_scope_assignment():
+def test_detects_subscription_scope_assignment() -> None:
     command = (
         "az role assignment create "
         "--assignee developer@example.com "
@@ -132,7 +132,7 @@ def test_detects_subscription_scope_assignment():
     )
 
 
-def test_resource_scoped_reader_assignment_has_no_problem():
+def test_resource_scoped_reader_assignment_has_no_problem() -> None:
     command = (
         "az role assignment create "
         "--assignee developer@example.com "
@@ -144,7 +144,7 @@ def test_resource_scoped_reader_assignment_has_no_problem():
     assert analyze_azure_command(command) is None
 
 
-def test_detects_public_inbound_nsg_rule():
+def test_detects_public_inbound_nsg_rule() -> None:
     command = (
         "az network nsg rule create "
         "--resource-group production "
@@ -162,7 +162,7 @@ def test_detects_public_inbound_nsg_rule():
     assert result == ("Detected an inbound Azure NSG rule open to the public internet.")
 
 
-def test_private_inbound_nsg_rule_has_no_problem():
+def test_private_inbound_nsg_rule_has_no_problem() -> None:
     command = (
         "az network nsg rule create "
         "--resource-group production "
@@ -178,7 +178,7 @@ def test_private_inbound_nsg_rule_has_no_problem():
     assert analyze_azure_command(command) is None
 
 
-def test_outbound_public_nsg_rule_has_no_problem():
+def test_outbound_public_nsg_rule_has_no_problem() -> None:
     command = (
         "az network nsg rule create "
         "--resource-group production "
@@ -193,7 +193,7 @@ def test_outbound_public_nsg_rule_has_no_problem():
     assert analyze_azure_command(command) is None
 
 
-def test_detects_public_storage_container():
+def test_detects_public_storage_container() -> None:
     command = (
         "az storage container set-permission "
         "--name public-assets "
@@ -206,7 +206,7 @@ def test_detects_public_storage_container():
     assert result == ("Detected public access on an Azure Storage container.")
 
 
-def test_detects_blob_public_access():
+def test_detects_blob_public_access() -> None:
     command = (
         "az storage container set-permission "
         "--name public-assets "
@@ -219,7 +219,7 @@ def test_detects_blob_public_access():
     assert result == ("Detected public access on an Azure Storage container.")
 
 
-def test_private_storage_container_has_no_problem():
+def test_private_storage_container_has_no_problem() -> None:
     command = (
         "az storage container set-permission "
         "--name private-assets "
@@ -230,9 +230,9 @@ def test_private_storage_container_has_no_problem():
     assert analyze_azure_command(command) is None
 
 
-def test_analyzes_safe_command():
+def test_analyzes_safe_command() -> None:
     assert analyze_azure_command("az group list") is None
 
 
-def test_analyzer_ignores_non_azure_command():
+def test_analyzer_ignores_non_azure_command() -> None:
     assert analyze_azure_command("kubectl get pods") is None
