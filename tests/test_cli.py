@@ -520,3 +520,150 @@ def test_scan_empty_directory_supports_sarif_output(
 
     assert run["tool"]["driver"]["rules"] == []
     assert run["results"] == []
+
+
+def test_scan_writes_json_output_to_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """JSON output should be written to the requested file."""
+    monkeypatch.chdir(tmp_path)
+
+    input_path = Path("risky.md")
+    output_path = Path("report.json")
+
+    input_path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(input_path),
+                "--format",
+                "json",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert captured.out == ""
+    assert captured.err == ""
+    assert payload["kind"] == "file"
+    assert payload["path"] == "risky.md"
+    assert payload["error_count"] == 1
+    assert payload["exit_code"] == 1
+
+
+def test_scan_writes_sarif_output_with_short_option(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The short output option should write valid SARIF."""
+    monkeypatch.chdir(tmp_path)
+
+    input_path = Path("risky.md")
+    output_path = Path("report.sarif")
+
+    input_path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(input_path),
+                "--format",
+                "sarif",
+                "-o",
+                str(output_path),
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert captured.out == ""
+    assert captured.err == ""
+    assert payload["version"] == "2.1.0"
+    assert payload["runs"][0]["results"][0]["ruleId"] == ("RBP-AZURE-001")
+
+
+def test_scan_rejects_input_file_as_output_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The input document must not be overwritten by output."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("runbook.md")
+    original = "```bash\naz group list\n```\n"
+    path.write_text(original, encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--output",
+                str(path),
+            ]
+        )
+        == 2
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == (
+        "runbookproof: error: output path matches input file: runbook.md\n"
+    )
+    assert path.read_text(encoding="utf-8") == original
+
+
+def test_scan_reports_output_write_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unwritable output destination should return two."""
+    monkeypatch.chdir(tmp_path)
+
+    input_path = Path("safe.md")
+    input_path.write_text(
+        "```bash\naz group list\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(input_path),
+                "--format",
+                "json",
+                "--output",
+                "missing/report.json",
+            ]
+        )
+        == 2
+    )
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert ("runbookproof: error: cannot write missing/report.json") in captured.err
