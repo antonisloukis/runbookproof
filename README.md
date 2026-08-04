@@ -8,8 +8,23 @@
 
 # RunbookProof
 
-[![CI](https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml/badge.svg)](https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml)
-[![Code Scanning](https://github.com/antonisloukis/runbookproof/actions/workflows/code-scanning.yml/badge.svg)](https://github.com/antonisloukis/runbookproof/actions/workflows/code-scanning.yml)
+<p align="center">
+  <a href="https://pypi.org/project/runbookproof/">
+    <img src="https://img.shields.io/pypi/v/runbookproof?logo=pypi&label=PyPI" alt="PyPI version">
+  </a>
+  <a href="https://pypi.org/project/runbookproof/">
+    <img src="https://img.shields.io/pypi/pyversions/runbookproof?logo=python" alt="Python versions">
+  </a>
+  <a href="https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml">
+    <img src="https://github.com/antonisloukis/runbookproof/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/antonisloukis/runbookproof/actions/workflows/code-scanning.yml">
+    <img src="https://github.com/antonisloukis/runbookproof/actions/workflows/code-scanning.yml/badge.svg" alt="Code Scanning">
+  </a>
+  <a href="https://github.com/antonisloukis/runbookproof/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/antonisloukis/runbookproof" alt="License">
+  </a>
+</p>
 
 **Static analysis for commands embedded in documentation, operational runbooks, and AI-generated instructions.**
 
