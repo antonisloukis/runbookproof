@@ -46,7 +46,7 @@ jobs:
 
           uvx --from . runbookproof scan . \
             --format sarif \
-            > runbookproof.sarif
+            --output runbookproof.sarif
 
           scan_exit_code=$?
           set -e

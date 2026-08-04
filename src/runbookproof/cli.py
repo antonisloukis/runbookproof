@@ -6,6 +6,8 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from typing import Literal, cast
 
@@ -74,6 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         dest="output_format",
         help="Output format. Defaults to text.",
+    )
+    scan_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        dest="output_path",
+        help="Write scan output to a UTF-8 file instead of standard output.",
     )
 
     return parser
@@ -300,6 +309,22 @@ def _print_json(payload: dict[str, object]) -> None:
     )
 
 
+def _write_output(path: Path, content: str) -> bool:
+    """Write rendered scan output as UTF-8."""
+    try:
+        path.write_text(content, encoding="utf-8")
+    except OSError as error:
+        detail = error.strerror or str(error)
+
+        print(
+            f"runbookproof: error: cannot write {path}: {detail}",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
+
+
 def _read_markdown(path: Path) -> str | None:
     """Read one UTF-8 Markdown document."""
     try:
@@ -475,6 +500,45 @@ def _run_scan(
     )
 
 
+def _run_scan_with_output(
+    path: Path,
+    output_format: OutputFormat,
+    output_path: Path | None,
+) -> int:
+    """Run a scan and optionally write its output to a file."""
+    if output_path is None:
+        return _run_scan(
+            path,
+            output_format,
+        )
+
+    if path.is_file() and path.resolve() == output_path.resolve():
+        print(
+            f"runbookproof: error: output path matches input file: {path}",
+            file=sys.stderr,
+        )
+        return 2
+
+    output = StringIO()
+
+    with redirect_stdout(output):
+        exit_code = _run_scan(
+            path,
+            output_format,
+        )
+
+    if exit_code == 2:
+        return exit_code
+
+    if not _write_output(
+        output_path,
+        output.getvalue(),
+    ):
+        return 2
+
+    return exit_code
+
+
 def main(
     argv: Sequence[str] | None = None,
 ) -> int:
@@ -504,10 +568,15 @@ def main(
             OutputFormat,
             arguments.output_format,
         )
+        output_path = cast(
+            Path | None,
+            arguments.output_path,
+        )
 
-        return _run_scan(
+        return _run_scan_with_output(
             path,
             output_format,
+            output_path,
         )
 
     parser.error(f"unknown command: {command}")
