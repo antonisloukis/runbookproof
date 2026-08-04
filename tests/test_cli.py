@@ -356,3 +356,167 @@ def test_scan_empty_directory_supports_json_output(
         "exit_code": 0,
         "reports": [],
     }
+
+
+def test_scan_file_supports_sarif_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A file scan should support SARIF output."""
+    monkeypatch.chdir(tmp_path)
+
+    path = Path("risky.md")
+    path.write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(path),
+                "--format",
+                "sarif",
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["version"] == "2.1.0"
+    assert payload["$schema"] == ("https://json.schemastore.org/sarif-2.1.0.json")
+
+    run = payload["runs"][0]
+    driver = run["tool"]["driver"]
+
+    assert driver["name"] == "RunbookProof"
+    assert driver["version"] == __version__
+    assert driver["informationUri"] == ("https://github.com/antonisloukis/runbookproof")
+    assert driver["rules"] == [
+        {
+            "id": "RBP-AZURE-001",
+            "shortDescription": {
+                "text": ("Azure CLI command deletes a resource group"),
+            },
+            "defaultConfiguration": {
+                "level": "error",
+            },
+        }
+    ]
+
+    result = run["results"][0]
+
+    assert result["ruleId"] == "RBP-AZURE-001"
+    assert result["level"] == "error"
+    assert result["message"] == {
+        "text": ("Azure CLI command deletes a resource group"),
+    }
+    assert result["locations"] == [
+        {
+            "physicalLocation": {
+                "artifactLocation": {
+                    "uri": "risky.md",
+                },
+                "region": {
+                    "startLine": 2,
+                    "endLine": 2,
+                },
+            }
+        }
+    ]
+    assert result["properties"]["command"] == (
+        "az group delete --name production --yes"
+    )
+    assert len(result["partialFingerprints"]["runbookproofFingerprint"]) == 16
+
+
+def test_scan_directory_supports_sarif_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A directory scan should aggregate SARIF."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    nested = docs / "operations"
+    nested.mkdir(parents=True)
+
+    (docs / "safe.md").write_text(
+        "```bash\naz group list\n```\n",
+        encoding="utf-8",
+    )
+    (nested / "risky.md").write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "scan",
+                str(docs),
+                "--format",
+                "sarif",
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+
+    run = payload["runs"][0]
+
+    assert len(run["tool"]["driver"]["rules"]) == 1
+    assert len(run["results"]) == 1
+
+    result = run["results"][0]
+
+    assert result["ruleId"] == "RBP-AZURE-001"
+    assert (
+        (result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"])
+        == "docs/operations/risky.md"
+    )
+
+
+def test_scan_empty_directory_supports_sarif_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty directory should produce valid SARIF."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    docs.mkdir()
+
+    assert (
+        main(
+            [
+                "scan",
+                str(docs),
+                "--format",
+                "sarif",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["version"] == "2.1.0"
+
+    run = payload["runs"][0]
+
+    assert run["tool"]["driver"]["rules"] == []
+    assert run["results"] == []
