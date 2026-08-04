@@ -26,12 +26,12 @@ def test_main_without_arguments_displays_help(
 def test_version_option_displays_package_version(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The version option should display the installed package version."""
+    """The version option should display the package version."""
     with pytest.raises(SystemExit) as error:
         main(["--version"])
 
     assert error.value.code == 0
-    assert capsys.readouterr().out == f"runbookproof {__version__}\n"
+    assert capsys.readouterr().out == (f"runbookproof {__version__}\n")
 
 
 def test_scan_safe_markdown_returns_success(
@@ -118,3 +118,89 @@ def test_scan_invalid_utf8_returns_usage_error(
 
     assert captured.out == ""
     assert captured.err == ("runbookproof: error: invalid.md is not valid UTF-8\n")
+
+
+def test_scan_directory_recursively_scans_markdown_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A directory should be scanned recursively."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    nested = docs / "operations"
+
+    nested.mkdir(parents=True)
+
+    (docs / "safe.md").write_text(
+        "```bash\naz group list\n```\n",
+        encoding="utf-8",
+    )
+    (nested / "risky.MD").write_text(
+        "```bash\naz group delete --name production --yes\n```\n",
+        encoding="utf-8",
+    )
+    (docs / "ignored.txt").write_text(
+        "az group delete --name ignored",
+        encoding="utf-8",
+    )
+
+    assert main(["scan", str(docs)]) == 1
+
+    captured = capsys.readouterr()
+
+    assert captured.out == (
+        "ERROR RBP-AZURE-001 "
+        "docs/operations/risky.MD:2: "
+        "Azure CLI command deletes a resource group\n"
+        "Scanned docs: "
+        "2 Markdown files, "
+        "2 commands, "
+        "1 error, "
+        "0 warnings, "
+        "0 info\n"
+    )
+    assert captured.err == ""
+
+
+def test_scan_empty_directory_returns_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty directory should produce an empty report."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    docs.mkdir()
+
+    assert main(["scan", str(docs)]) == 0
+
+    captured = capsys.readouterr()
+
+    assert captured.out == (
+        "Scanned docs: 0 Markdown files, 0 commands, 0 errors, 0 warnings, 0 info\n"
+    )
+    assert captured.err == ""
+
+
+def test_scan_directory_reports_invalid_utf8(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Invalid Markdown inside a directory should return two."""
+    monkeypatch.chdir(tmp_path)
+
+    docs = Path("docs")
+    docs.mkdir()
+
+    (docs / "invalid.md").write_bytes(b"\xff\xfe\x00")
+
+    assert main(["scan", str(docs)]) == 2
+
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    assert captured.err == ("runbookproof: error: docs/invalid.md is not valid UTF-8\n")
